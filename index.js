@@ -2,55 +2,42 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  jidNormalizedUser,
   getContentType,
   fetchLatestBaileysVersion,
   Browsers
 } = require('@whiskeysockets/baileys');
 
-const {
-  getBuffer,
-  getGroupAdmins,
-  getRandom,
-  h2k,
-  isUrl,
-  Json,
-  runtime,
-  sleep,
-  fetchJson
-} = require('./lib/functions');
-
 const fs = require('fs');
 const P = require('pino');
 const config = require('./config');
 const qrcode = require('qrcode-terminal');
-const util = require('util');
-const { sms, downloadMediaMessage } = require('./lib/msg');
-const axios = require('axios');
-const { File } = require('megajs');
 const express = require("express");
 
 const prefix = '.';
 const ownerNumber = ['+94779912589'];
-
 const app = express();
 const port = process.env.PORT || 8000;
 
+// 🌐 Server Running Confirmation
 app.get("/", (req, res) => {
   res.send("✅ Princess Olya Bot Running...");
 });
-
 app.listen(port, () => console.log(`🌐 Server listening on http://localhost:${port}`));
 
 async function connectToWA() {
   console.log("🤖 Princess Olya Bot Connecting...");
 
-  const { state, saveCreds } = await useMultiFileAuthState(__dirname + '/auth_info_baileys/');
+  // 🔄 Check if Session ID Exists
+  if (!fs.existsSync("./auth_info_baileys/")) {
+    fs.mkdirSync("./auth_info_baileys/");
+  }
+
+  const { state, saveCreds } = await useMultiFileAuthState("./auth_info_baileys/");
   var { version } = await fetchLatestBaileysVersion();
 
   const conn = makeWASocket({
     logger: P({ level: 'silent' }),
-    printQRInTerminal: false,
+    printQRInTerminal: true, // ✅ QR Code Visible in Terminal
     browser: Browsers.macOS("Firefox"),
     syncFullHistory: true,
     auth: state,
@@ -58,14 +45,23 @@ async function connectToWA() {
   });
 
   conn.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log("📲 Scan the QR Code Below:");
+      qrcode.generate(qr, { small: true });
+    }
+
     if (connection === 'close') {
-      if (lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut) {
+      const reason = lastDisconnect?.error?.output?.statusCode;
+      console.log(`⚠️ Connection closed! Reason: ${reason}`);
+      if (reason !== DisconnectReason.loggedOut) {
         connectToWA();
       }
     } else if (connection === 'open') {
       console.log('✅ Princess Olya Connected!');
 
+      // 🔌 Load Plugins
       const path = require('path');
       fs.readdirSync("./plugins/").forEach((plugin) => {
         if (path.extname(plugin).toLowerCase() == ".js") {
@@ -76,8 +72,7 @@ async function connectToWA() {
       console.log('🔌 Plugins Installed!');
 
       conn.sendMessage(ownerNumber + "@s.whatsapp.net", {
-        image: { url: `https://i.ibb.co/tC37Q7B/20241220-122443.jpg` },
-        caption: `✅ Princess Olya Bot Connected Successfully!\n\n👉 PREFIX: ${prefix}`
+        text: `✅ Princess Olya Bot Connected Successfully!\n\n👉 PREFIX: ${prefix}`
       });
     }
   });
