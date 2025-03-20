@@ -1,0 +1,22 @@
+{
+  "name": "Princess Olya",
+  "description": "Powerful WhatsApp bot made by the developer",
+  "logo": "https://telegra.ph/file/ad25b2227fa2a1a01b707.jpg",
+  "keywords": ["whatsapp-bot", "Princess Olya"],
+  "success_url": "/",
+
+  "env": {
+    "SESSION_ID": {
+      "description": "Put the session ID here.",
+      "required": true
+    }
+  },
+
+  "buildpacks": [
+    {
+      "url": "https://github.com/heroku/heroku-buildpack-nodejs.git"
+    }
+  ],
+  
+  "stack": "heroku-24"
+}
