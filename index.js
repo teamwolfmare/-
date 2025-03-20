@@ -1,4 +1,4 @@
-const {
+const { 
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
@@ -41,7 +41,8 @@ async function connectToWA() {
     browser: Browsers.macOS("Firefox"),
     syncFullHistory: true,
     auth: state,
-    version
+    version,
+    keepAliveIntervalMs: 5000 // ✅ Prevent Disconnection (Fix Timeout Issue)
   });
 
   conn.ev.on('connection.update', (update) => {
@@ -56,7 +57,8 @@ async function connectToWA() {
       const reason = lastDisconnect?.error?.output?.statusCode;
       console.log(`⚠️ Connection closed! Reason: ${reason}`);
       if (reason !== DisconnectReason.loggedOut) {
-        connectToWA();
+        console.log("🔄 Reconnecting...");
+        setTimeout(() => connectToWA(), 5000);
       }
     } else if (connection === 'open') {
       console.log('✅ Princess Olya Connected!');
@@ -80,39 +82,44 @@ async function connectToWA() {
   conn.ev.on('creds.update', saveCreds);
   
   conn.ev.on('messages.upsert', async (mek) => {
-    mek = mek.messages[0];
-    if (!mek.message) return;
-    mek.message = (getContentType(mek.message) === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message;
+    try {
+      if (!mek.messages || !mek.messages[0]) return;
+      mek = mek.messages[0];
 
-    const from = mek.key.remoteJid;
-    await conn.sendPresenceUpdate('composing', from);
+      mek.message = (getContentType(mek.message) === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message;
+      if (!mek.message) return;
 
-    const body = (mek.message.conversation) ? mek.message.conversation : (mek.message.extendedTextMessage) ? mek.message.extendedTextMessage.text : '';
-    const isCmd = body.startsWith(prefix);
-    const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
-    const args = body.trim().split(/ +/).slice(1);
-    const q = args.join(' ');
+      const from = mek.key.remoteJid;
+      await conn.sendPresenceUpdate('composing', from);
 
-    const sender = mek.key.fromMe ? conn.user.id.split(':')[0] + '@s.whatsapp.net' : mek.key.participant || mek.key.remoteJid;
-    const senderNumber = sender.split('@')[0];
-    const isOwner = ownerNumber.includes(senderNumber);
-    const reply = (text) => {
-      conn.sendMessage(from, { text }, { quoted: mek });
-    };
+      const body = (mek.message.conversation) ? mek.message.conversation : (mek.message.extendedTextMessage) ? mek.message.extendedTextMessage.text : '';
+      const isCmd = body.startsWith(prefix);
+      const command = isCmd ? body.slice(prefix.length).trim().split(' ').shift().toLowerCase() : '';
+      const args = body.trim().split(/ +/).slice(1);
+      const q = args.join(' ');
 
-    // === Command Handling ===
-    const events = require('./command');
-    const cmd = events.commands.find(cmd => cmd.pattern === command) || events.commands.find(cmd => cmd.alias && cmd.alias.includes(command));
-    
-    if (cmd) {
-      if (cmd.react) conn.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
-      try {
-        cmd.function(conn, mek, { from, body, isCmd, command, args, q, sender, senderNumber, isOwner, reply });
-      } catch (e) {
-        console.error("[PLUGIN ERROR] " + e);
+      const sender = mek.key.fromMe ? conn.user.id.split(':')[0] + '@s.whatsapp.net' : mek.key.participant || mek.key.remoteJid;
+      const senderNumber = sender.split('@')[0];
+      const isOwner = ownerNumber.includes(senderNumber);
+      const reply = (text) => {
+        conn.sendMessage(from, { text }, { quoted: mek });
+      };
+
+      // === Command Handling ===
+      const events = require('./command');
+      const cmd = events.commands.find(cmd => cmd.pattern === command) || events.commands.find(cmd => cmd.alias && cmd.alias.includes(command));
+      
+      if (cmd) {
+        if (cmd.react) conn.sendMessage(from, { react: { text: cmd.react, key: mek.key } });
+        try {
+          cmd.function(conn, mek, { from, body, isCmd, command, args, q, sender, senderNumber, isOwner, reply });
+        } catch (e) {
+          console.error("[PLUGIN ERROR] " + e);
+        }
       }
+    } catch (error) {
+      console.error("⚠️ Message Handler Error:", error);
     }
-
   });
 }
 
