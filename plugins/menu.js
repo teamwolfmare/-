@@ -4,41 +4,24 @@ const { cmd, commands } = require("../command");
 cmd(
   {
     pattern: "menu",
-    alise: ["getmenu"],
-    desc: "get cmd list",
+    alias: ["getmenu"],
+    desc: "Get command list",
     category: "main",
     filename: __filename,
+    react: "📜",
   },
-  async (
-    robin,
-    mek,
-    m,
-    {
-      from,
-      quoted,
-      body,
-      isCmd,
-      command,
-      args,
-      q,
-      isGroup,
-      sender,
-      senderNumber,
-      botNumber2,
-      botNumber,
-      pushname,
-      isMe,
-      isOwner,
-      groupMetadata,
-      groupName,
-      participants,
-      groupAdmins,
-      isBotAdmins,
-      isAdmins,
-      reply,
-    }
-  ) => {
+  async (hansaka, mek, m, extra) => { // 👑 robin → hansaka
     try {
+      if (!extra) {
+        return console.error("❌ 'extra' object is undefined!");
+      }
+
+      const {
+        from,
+        pushname = "User",
+        reply,
+      } = extra;
+
       const config = await readEnv();
       let menu = {
         main: "",
@@ -51,9 +34,7 @@ cmd(
 
       for (let i = 0; i < commands.length; i++) {
         if (commands[i].pattern && !commands[i].dontAddCommandList) {
-          menu[
-            commands[i].category
-          ] += `${config.PREFIX}${commands[i].pattern}\n`;
+          menu[commands[i].category] += `${config.PREFIX}${commands[i].pattern}\n`;
         }
       }
 
@@ -86,9 +67,13 @@ ${menu.search}
 
 🥶𝐌𝐚𝐝𝐞 𝐛𝐲 𝐒_𝐈_𝐇_𝐈_𝐋_𝐄_𝐋🥶
 
-> ROBIN MENU MSG
+> HANSAKA MENU MSG
 `;
-      await robin.sendMessage(
+
+      // 🛑 React එක Add කරන කොටස
+      await hansaka.sendMessage(from, { react: { text: "📜", key: mek.key } });
+
+      await hansaka.sendMessage( // 👑 robin → hansaka
         from,
         {
           image: {
@@ -99,8 +84,8 @@ ${menu.search}
         { quoted: mek }
       );
     } catch (e) {
-      console.log(e);
-      reply(`${e}`);
+      console.error("Menu command error:", e);
+      reply(`❌ An error occurred: ${e.message}`);
     }
   }
 );
